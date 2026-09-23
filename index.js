@@ -4,9 +4,11 @@ const dotenv = require('dotenv');
 const path = require('path');
 
 //Solicitud de los servicios de AWS S3 (Subir archivos a S3)
+//Otorgar nuevo permiso (lectura)
 const {
     S3Client,
-    PutObjectCommand
+    PutObjectCommand,
+    ListObjectsV2Command
 } = require('@aws-sdk/client-s3');
 
 //Cargar variables de entorno
@@ -27,6 +29,7 @@ const upload = multer({
 })
 
 //Cliente S3
+// forcePathStyle : true _(modo compatibilidad)
 const s3Client = new S3Client({
     region: process.env.AWS_REGION,
     endpoint: process.env.AWS_ENDPOINT_URL,
@@ -44,6 +47,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+//ruta para listar => http://localhost:3000/lista
+app.get("/lista", (req, res) => {
+  res.sendFile(path.join(__dirname,"public", "lista.html"))
+})
 
 //Ruta para subir archivos
 app.post('/upload', upload.single('archivo'), async (req, res) => {
@@ -97,6 +105,51 @@ app.post('/upload', upload.single('archivo'), async (req, res) => {
             error: e.message
         })
     }
+})
+
+//Nueva operacion (Lectura desde AWS s3)
+app.get("/api/archivos", async() => {
+  try{
+
+    //Comando para leer los archvios
+    const command = new ListObjectsV2Command({
+      Bucket: BUCKET,
+      Prefix: PREFIX
+    })
+
+    //consulta s3
+    const data = await s3Client.send(command)
+
+    //SI no pasa si no existe los archivos
+    //1 ()  : Retorna un arreglo incluso sino existen archivos
+    //2 ()  : Filtra la colecion
+    // 3 () : Retorna los datos ya filtrados
+    const archivos = (data.Contents || [])
+      .filter(Objecto => Objecto.Key !== PREFIX)
+      .map(Objecto => ({
+        nombre: Objecto.Key.replace(PREFIX, ""),
+        key: Objecto.Key,
+        tamano: Objecto.Size,
+        fecha: Objecto.LastModified
+      }))
+
+    //retornamos los datps
+    res.json({
+      success: true,
+      bucket: BUCKET,
+      prefijo: PREFIX,
+      total: archivos.length,
+      archivos: archivos
+    })
+
+  } catch(e){
+    console.error(`Error al listar de archivos: `, e)
+    res.status(500).json({
+      success: false,
+      message: 'No se puede acceder a los archivos',
+      error: e.message
+    })
+  }
 })
 
 //Iniciar el servidor
