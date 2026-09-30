@@ -2,16 +2,23 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Que fue </title>
+  <title>Subir archivos AWS S3</title>
+  <link rel="stylesheet" href="/estilo.css">
 </head>
 <body>
-  <h1>Subir archivos AWS S3</h1>
-  <form action="/upload" method="POST" enctype="multipart/form-data">
-    <label for="">Seleccione archivo: </label>
-    <input type="file" id="archivo" name="archivo" required>
-    <button type="submit">Enviar</button>
-  </form>
-  
+
+  <div class="contenedor">
+    <h1>Subir archivos AWS S3</h1>
+    <form action="/upload" method="POST" enctype="multipart/form-data">
+      <label for="archivo">Seleccione archivo: </label>
+      <input type="file" id="archivo" name="archivo" required>
+      <button type="submit">Enviar</button>
+    </form>
+    
+    <p style="margin-top: 15px;">
+      <a href="/lista">Ver archivos guardados</a>
+    </p>
+  </div>
+
 </body>
 </html>

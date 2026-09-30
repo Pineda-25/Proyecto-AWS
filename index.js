@@ -11,6 +11,12 @@ const {
     ListObjectsV2Command
 } = require('@aws-sdk/client-s3');
 
+//DynamoDB - servicio BD noSQL
+const {
+    DynamoDBClient,
+    PutItemCommand
+} = require("@aws-sdk/client-dynamodb")
+
 //Cargar variables de entorno
 dotenv.config();
 
@@ -40,6 +46,16 @@ const s3Client = new S3Client({
     forcePathStyle: true, // Necesario para LocalStack
 })
 
+//Cliente Dynameo
+const dynamoDBClient = new DynamoDBClient({
+   region: process.env.AWS_REGION,
+    endpoint: process.env.AWS_ENDPOINT_URL,
+    credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+    }
+})
+
 //Archivo estatico aplicacion => Frontend
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -52,6 +68,9 @@ app.get('/', (req, res) => {
 app.get("/lista", (req, res) => {
   res.sendFile(path.join(__dirname,"public", "lista.html"))
 })
+
+//cuando el cliente suba el archvio , se utlizan 2 servicios
+//S3    :alojatr el archvio 
 
 //Ruta para subir archivos
 app.post('/upload', upload.single('archivo'), async (req, res) => {
@@ -88,13 +107,26 @@ app.post('/upload', upload.single('archivo'), async (req, res) => {
 
         console.log(`Archivo subido a S3: ${key}`);
 
+        //tambien.. uitlizaremos Dynamodb 
+        const id= `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`
+        const dynamoCommand = new PutItemCommand({
+            TableName: process.env.AWS_DYNAMODB_TABLE,
+            Item: {
+                id: {S:id},
+                nombre: {S:fileName},
+                tipo: {S:req.file.mimetype},
+                tamano: {N:req.file.size.toString()},
+                fecha: {S: new Date().toISOString},
+                s3key: {S:key}
+            }
+        })
+
+        //Ejecutar el dynamodb
+        await dynamoDBClient.send(dynamoCommand)
+        console.log("Registro en dynamo Creado")
+
         //Respuesta al cliente
-        res.json({
-            success: true,
-            message: 'Archivo subido correctamente',
-            bucket: BUCKET,
-            key: key
-        });
+        res.redirect('/lista');
 
 
     } catch (e) {
@@ -108,7 +140,7 @@ app.post('/upload', upload.single('archivo'), async (req, res) => {
 })
 
 //Nueva operacion (Lectura desde AWS s3)
-app.get("/api/archivos", async() => {
+app.get("/api/archivos", async(req,res) => {
   try{
 
     //Comando para leer los archvios
@@ -151,6 +183,20 @@ app.get("/api/archivos", async() => {
     })
   }
 })
+
+const { GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3')
+app.get('/api/descargar', async (req,res) =>{
+    const { Body } = await s3Client.send(new GetObjectCommand({ Bucket: BUCKET, Key: req.query.key }))
+    res.attachment(req.query.key);
+    Body.pipe(res)
+})
+
+app.get('/api/eliminar', async (req, res) => {
+  await s3Client.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: req.query.key }));
+  res.redirect('/lista');
+});
+
+
 
 //Iniciar el servidor
 app.listen(PORT, () => {

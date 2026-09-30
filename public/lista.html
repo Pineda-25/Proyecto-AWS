@@ -2,10 +2,44 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Document</title>
+  <title>Lista de Archivos</title>
+  <link rel="stylesheet" href="/estilo.css">
 </head>
 <body>
-  
+
+  <div class="contenedor">
+    <h2>Archivos Almacenados</h2>
+
+    <p><a href="/">+ Subir otro archivo</a></p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Tamaño</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="lista"></tbody>
+    </table>
+  </div>
+
+  <script>
+    fetch('/api/archivos')
+      .then(r => r.json())
+      .then(data => {
+        document.getElementById('lista').innerHTML = data.archivos.map(a => `
+          <tr>
+            <td>${a.nombre}</td>
+            <td>${(a.tamano / 1024).toFixed(0)} KB</td>
+            <td>
+              <a href="/api/descargar?key=${a.key}" download>Descargar</a>
+              <a href="/api/eliminar?key=${a.key}" onclick="return confirm('¿Borrar archivo?')">Eliminar</a>
+            </td>
+          </tr>
+        `).join('');
+      });
+  </script>
+
 </body>
 </html>

@@ -1,0 +1,53 @@
+body {
+  font-family: Arial, sans-serif;
+  background-color: #ffffff;
+  color: #000000;
+  margin: 20px;
+}
+
+/* Contenedor con borde y fondo celeste claro */
+.contenedor {
+  max-width: 800px;
+  margin: 0 auto;
+  background-color: #eaf4fc; /* Celeste claro */
+  padding: 20px;
+  border: 1px solid #b0d4f1;
+  border-radius: 4px;
+}
+
+h2 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #000000;
+}
+
+/* Tabla simple con fondo blanco y bordes negros */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: #ffffff;
+}
+
+table, th, td {
+  border: 1px solid #000000;
+}
+
+th, td {
+  padding: 8px 10px;
+  text-align: left;
+}
+
+th {
+  background-color: #d8ecf8; /* Celeste suave para el encabezado */
+}
+
+/* Enlaces normales */
+a {
+  color: #0056b3;
+  margin-right: 10px;
+  text-decoration: underline;
+}
+
+a:hover {
+  color: #000000;
+}
