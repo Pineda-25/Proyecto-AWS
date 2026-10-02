@@ -121,7 +121,31 @@ app.post('/upload', upload.single('archivo'), async (req, res) => {
         //Ejecutar el comando para subir el archivo
         await s3Client.send(command);
 
+        // Contar cuántos archivos hay actualmente en almacenamiento S3
+        const listCommand = new ListObjectsV2Command({
+            Bucket: BUCKET,
+            Prefix: PREFIX
+        });
+        const listRes = await s3Client.send(listCommand);
+        const totalArchivos = (listRes.Contents || []).filter(item => item.Key !== PREFIX).length;
+
         console.log(`Archivo subido a S3: ${key}`);
+        console.log(`Archivos actuales en almacenamiento S3: ${totalArchivos}`);
+
+        // Formatear fecha y hora para Perú (America/Lima)
+        const fecha = new Date().toLocaleString('es-PE', {
+            timeZone: 'America/Lima',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+        });
+
+        // Formato legible de tamaño
+        const tamanoKB = (req.file.size / 1024).toFixed(2) + ' KB';
 
         //tambien.. uitlizaremos Dynamodb 
         const id= `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`
@@ -132,8 +156,10 @@ app.post('/upload', upload.single('archivo'), async (req, res) => {
                 nombre: {S:fileName},
                 tipo: {S:req.file.mimetype},
                 tamano: {N:req.file.size.toString()},
-                fecha: {S: new Date().toISOString},
-                s3key: {S:key}
+                tamanoLegible: {S:tamanoKB},
+                fecha: {S:fecha},
+                s3key: {S:key},
+                totalAlmacenamiento: {N:totalArchivos.toString()}
             }
         })
 
@@ -141,12 +167,21 @@ app.post('/upload', upload.single('archivo'), async (req, res) => {
         await dynamoDBClient.send(dynamoCommand)
         console.log("Registro en dynamo Creado")
 
-        const payload = JSON.stringify({ archivo: fileName });
+        // Invocación a Lambda con todos los detalles requeridos
+        const payload = JSON.stringify({
+            archivo: fileName,
+            tipo: req.file.mimetype,
+            tamano: tamanoKB,
+            tamanoBytes: req.file.size,
+            fecha: fecha,
+            totalAlmacenamiento: totalArchivos
+        });
         const lambdaRes = await lambdaClient.send(new InvokeCommand({
             FunctionName: 'notificar',
             Payload: Buffer.from(payload)
         }));
-        console.log("NOTIFICACIÓN LAMBDA:", Buffer.from(lambdaRes.Payload).toString());
+        const notificacionTexto = Buffer.from(lambdaRes.Payload).toString();
+        console.log("NOTIFICACIÓN LAMBDA:", notificacionTexto);
 
         // Respuesta final al cliente (una sola vez)
         res.redirect('/lista');
