@@ -2,45 +2,148 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Lista de Archivos</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Archivos Almacenados | AWS S3</title>
   <link rel="stylesheet" href="/estilo.css">
 </head>
 <body>
 
-  <div class="contenedor">
-    <h2>Archivos Almacenados</h2>
+  <header class="navbar">
+    <div class="navbar-brand">
+      <span class="navbar-title">AWS CLOUD STORAGE</span>
+      <span class="navbar-badge">Floci Local</span>
+    </div>
+    <nav class="navbar-nav">
+      <a href="/" class="nav-link">Subir Archivo</a>
+      <a href="/lista" class="nav-link active">Archivos Almacenados</a>
+    </nav>
+  </header>
 
-    <p><a href="/">+ Subir otro archivo</a></p>
+  <main class="main-container">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Archivos</div>
+        <div class="stat-value" id="statTotal">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Tamano Acumulado</div>
+        <div class="stat-value" id="statSize">0 KB</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Bucket Asignado</div>
+        <div class="stat-value" id="statBucket" style="font-size: 1.1rem; padding-top: 6px;">Cargando...</div>
+      </div>
+    </div>
 
-    <table>
-      <thead>
-        <tr>
-          <th>Nombre</th>
-          <th>Tamaño</th>
-          <th>Acciones</th>
-        </tr>
-      </thead>
-      <tbody id="lista"></tbody>
-    </table>
-  </div>
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <h1 class="card-title">Inventario de Archivos en S3</h1>
+          <p class="card-subtitle">Listado sincronizado en tiempo real con el bucket local</p>
+        </div>
+        <a href="/" class="btn btn-primary">Subir Nuevo Archivo</a>
+      </div>
+
+      <div class="card-body">
+        <div class="toolbar">
+          <input type="text" id="searchInput" class="search-input" placeholder="Buscar por nombre...">
+          <button type="button" class="btn btn-secondary" onclick="cargarArchivos()">Actualizar</button>
+        </div>
+
+        <div class="table-container">
+          <table class="enterprise-table">
+            <thead>
+              <tr>
+                <th>Nombre del Documento</th>
+                <th>Tamano</th>
+                <th>Ultima Modificacion</th>
+                <th style="text-align: right;">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="lista">
+              <tr>
+                <td colspan="4" class="empty-state">Consultando almacenamiento...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    Plataforma de Gestion Cloud Empresarial | AWS Local Stack con Floci
+  </footer>
 
   <script>
+    let archivosCache = [];
 
+    function formatearTamano(bytes) {
+      if (!bytes || bytes === 0) return '0 KB';
+      const kb = bytes / 1024;
+      if (kb < 1024) return kb.toFixed(2) + ' KB';
+      return (kb / 1024).toFixed(2) + ' MB';
+    }
 
-    fetch('/api/archivos')
-      .then(r => r.json())
-      .then(data => {
-        document.getElementById('lista').innerHTML = data.archivos.map(a => `
-          <tr>
-            <td>${a.nombre}</td>
-            <td>${(a.tamano / 1024).toFixed(0)} KB</td>
-            <td>
-              <a href="/api/descargar?key=${a.key}" download>Descargar</a>
-              <a href="/api/eliminar?key=${a.key}" onclick="return confirm('¿Borrar archivo?')">Eliminar</a>
-            </td>
-          </tr>
-        `).join('');
+    function formatearFecha(isoString) {
+      if (!isoString) return 'N/A';
+      return new Date(isoString).toLocaleString('es-PE', {
+        timeZone: 'America/Lima',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
       });
+    }
+
+    function renderizar(archivos) {
+      const tbody = document.getElementById('lista');
+      if (!archivos || archivos.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No se encontraron archivos en este bucket.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = archivos.map(a => `
+        <tr>
+          <td style="font-weight: 500;">${a.nombre}</td>
+          <td style="color: #64748b;">${formatearTamano(a.tamano)}</td>
+          <td style="color: #64748b;">${formatearFecha(a.fecha)}</td>
+          <td style="text-align: right;">
+            <a href="/api/descargar?key=${encodeURIComponent(a.key)}" class="btn btn-download">Descargar</a>
+            <a href="/api/eliminar?key=${encodeURIComponent(a.key)}" class="btn btn-danger" onclick="return confirm('Desea eliminar definitivamente este archivo de S3?')">Eliminar</a>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function cargarArchivos() {
+      fetch('/api/archivos')
+        .then(r => r.json())
+        .then(data => {
+          archivosCache = data.archivos || [];
+          document.getElementById('statTotal').textContent = data.total || archivosCache.length;
+          document.getElementById('statBucket').textContent = data.bucket || 'S3';
+
+          const totalBytes = archivosCache.reduce((acc, curr) => acc + (curr.tamano || 0), 0);
+          document.getElementById('statSize').textContent = formatearTamano(totalBytes);
+
+          renderizar(archivosCache);
+        })
+        .catch(err => {
+          document.getElementById('lista').innerHTML = '<tr><td colspan="4" class="empty-state">Error al conectar con el servicio S3.</td></tr>';
+        });
+    }
+
+    document.getElementById('searchInput').addEventListener('input', function(e) {
+      const query = e.target.value.toLowerCase().trim();
+      const filtrados = archivosCache.filter(a => a.nombre.toLowerCase().includes(query));
+      renderizar(filtrados);
+    });
+
+    cargarArchivos();
   </script>
 
 </body>

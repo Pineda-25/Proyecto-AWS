@@ -2,23 +2,98 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Subir archivos AWS S3</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Carga de Archivos | AWS S3</title>
   <link rel="stylesheet" href="/estilo.css">
 </head>
 <body>
 
-  <div class="contenedor">
-    <h1>Subir archivos AWS S3</h1>
-    <form action="/upload" method="POST" enctype="multipart/form-data">
-      <label for="archivo">Seleccione archivo: </label>
-      <input type="file" id="archivo" name="archivo" required>
-      <button type="submit">Enviar</button>
-    </form>
-    
-    <p style="margin-top: 15px;">
-      <a href="/lista">Ver archivos guardados</a>
-    </p>
-  </div>
+  <header class="navbar">
+    <div class="navbar-brand">
+      <span class="navbar-title">AWS CLOUD STORAGE</span>
+      <span class="navbar-badge">Floci Local</span>
+    </div>
+    <nav class="navbar-nav">
+      <a href="/" class="nav-link active">Subir Archivo</a>
+      <a href="/lista" class="nav-link">Archivos Almacenados</a>
+    </nav>
+  </header>
+
+  <main class="main-container">
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <h1 class="card-title">Carga de Archivos a Amazon S3</h1>
+          <p class="card-subtitle">Almacenamiento de objetos con registro en DynamoDB e invocacion serverless en Lambda</p>
+        </div>
+      </div>
+
+      <div class="card-body">
+        <form id="uploadForm" action="/upload" method="POST" enctype="multipart/form-data">
+          <div class="dropzone" id="dropzone" onclick="document.getElementById('archivo').click()">
+            <span class="dropzone-label">Haga clic o arrastre un archivo aqui</span>
+            <span class="dropzone-hint">Formatos compatibles: PDF, DOCX, JPG, PNG, TXT y mas</span>
+            <input type="file" id="archivo" name="archivo" class="file-input" required>
+          </div>
+
+          <div class="file-preview" id="filePreview">
+            <span id="fileName">Ningun archivo seleccionado</span>
+            <span id="fileSize" style="color: #64748b;"></span>
+          </div>
+
+          <div class="form-actions">
+            <a href="/lista" class="btn btn-secondary">Ver Almacenados</a>
+            <button type="submit" id="btnSubmit" class="btn btn-primary">Subir a S3</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    Plataforma de Gestion Cloud Empresarial | AWS Local Stack con Floci
+  </footer>
+
+  <script>
+    const fileInput = document.getElementById('archivo');
+    const filePreview = document.getElementById('filePreview');
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+    const dropzone = document.getElementById('dropzone');
+
+    fileInput.addEventListener('change', function() {
+      if (this.files && this.files[0]) {
+        const file = this.files[0];
+        fileName.textContent = file.name;
+        fileSize.textContent = (file.size / 1024).toFixed(2) + ' KB';
+        filePreview.classList.add('visible');
+      }
+    });
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropzone.classList.add('dragover');
+      }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+      }, false);
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        fileInput.files = e.dataTransfer.files;
+        const file = e.dataTransfer.files[0];
+        fileName.textContent = file.name;
+        fileSize.textContent = (file.size / 1024).toFixed(2) + ' KB';
+        filePreview.classList.add('visible');
+      }
+    });
+  </script>
 
 </body>
 </html>
