@@ -1,106 +1,204 @@
-# Proyecto AWS Local con Floci
+# Proyecto AWS Local con Floci (S3, DynamoDB, Lambda y EventBridge Scheduler)
 
-Aplicacion web en Node.js y Express que emula servicios de Amazon Web Services (AWS) de forma local mediante Floci, sin costos ni necesidad de una cuenta de AWS.
+Guia completa y documentacion para emular y consumir servicios de Amazon Web Services (AWS) de forma local utilizando Floci, sin requerir una cuenta de AWS ni generar costos.
 
-## Servicios Utilizados
+## Conceptos Fundamentales
 
-1. Amazon S3 (Almacenamiento de Archivos):
-   Guarda y gestiona los archivos subidos.
-   Permite listar, descargar y eliminar archivos.
-   Calcula la cantidad total de archivos almacenados.
-
-2. Amazon DynamoDB (Base de Datos NoSQL):
-   Almacena los metadatos de cada archivo: id, nombre, tipo MIME, tamano, s3key, totalAlmacenamiento y fecha (con hora de Peru America/Lima).
-
-3. AWS Lambda (Funciones Serverless):
-   Funcion notificar: Procesa los metadatos y muestra en consola los datos del archivo subido y el conteo de almacenamiento.
-   Funcion rutina_automatica: Tarea de monitoreo que consulta S3 y reporta el estado y total de archivos.
-
-4. Amazon EventBridge Scheduler (Automatizacion por Horario):
-   Ejecuta de forma periodica e independiente la funcion rutina_automatica segun la frecuencia configurada (ejemplo: cada 1 hora).
+* CLI (Command Line Interface): Interfaz de linea de comandos para interactuar con el sistema y los servicios mediante instrucciones de texto.
+* GUI (Graphical User Interface): Interfaz grafica de usuario para interactuar de forma visual mediante botones y pantallas (navegador o aplicaciones de escritorio).
 
 ## Requisitos del Sistema
 
-* Docker Desktop o Docker Engine (ejecutandose).
-* Node.js (version 18 o superior) y npm.
-* Git.
+0. Tener instalado y en ejecucion Docker Desktop (en Windows o macOS) o Docker Engine (en Linux).
+1. Node.js (version 18 o superior) y npm.
+2. Git.
 
-## Instalacion de Floci y del Proyecto
+## Guia de Instalacion y Configuracion Base
 
-### 1. Clonar el repositorio
+### 1. Instalacion de Floci
 
-En Linux / macOS / Windows (Git Bash o Terminal):
+En Windows (PowerShell como Administrador):
+```powershell
+iwr https://floci.io/install.ps1 | iex
+```
+Al finalizar, cerrar y volver a abrir PowerShell como Administrador.
+
+En Linux / macOS:
+```bash
+curl -fsSL https://floci.io/install.sh | sh
+```
+
+### 2. Iniciar el contenedor de Floci
+
+Ejecutar el comando de arranque:
+```bash
+floci start
+```
+Se descargara y configurara automaticamente el contenedor en Docker.
+Abrir Docker Desktop y verificar que el contenedor llamado floci se encuentre en ejecucion (puerto 4566).
+
+Comandos utiles de control:
+* floci start: Inicia el contenedor de emulacion.
+* floci stop: Detiene el contenedor.
+* floci doctor: Realiza un diagnostico completo de Docker y del entorno (debe mostrar: All checks passed).
+
+### 3. Instalacion de AWS CLI
+
+Para interactuar por comandos con los servicios emulados en Floci:
+
+En Windows (PowerShell como Administrador):
+```powershell
+irm https://awscli.amazonaws.com/v2/install.ps1 | iex
+```
+Al finalizar, cerrar y volver a abrir PowerShell como Administrador.
+
+En Linux:
+```bash
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip && sudo ./aws/install
+```
+
+Verificar la instalacion:
+```bash
+aws --version
+```
+
+### 4. Configurar AWS CLI para Floci
+
+En Windows (PowerShell):
+```powershell
+floci env --shell powershell | Invoke-Expression
+```
+
+Nota alternativa en caso de que Invoke-Expression presente restricciones en PowerShell:
+Ingresar manualmente en PowerShell:
+```powershell
+$env:AWS_ENDPOINT_URL = 'http://localhost.floci.io:4566'
+$env:AWS_ACCESS_KEY_ID = 'test'
+$env:AWS_SECRET_ACCESS_KEY = 'test'
+$env:AWS_DEFAULT_REGION = 'us-east-1'
+```
+
+En Linux / macOS (Bash o Zsh):
+```bash
+eval $(floci env)
+```
+
+O configuracion global permanente para AWS CLI:
+```bash
+aws configure set aws_access_key_id test
+aws configure set aws_secret_access_key test
+aws configure set default.region us-east-1
+aws configure set default.endpoint_url http://localhost:4566
+```
+
+### 5. Verificar variables de entorno
+
+En PowerShell:
+```powershell
+$env:AWS_ENDPOINT_URL
+# Resultado: http://localhost.floci.io:4566
+
+$env:AWS_DEFAULT_REGION
+# Resultado: us-east-1
+```
+
+Resumen de lo logrado hasta este punto:
+a. Instalacion de componentes: Docker Desktop, Floci, AWS CLI y Node.js.
+b. Configuracion de Floci, AWS y variables de entorno locales.
+c. Inicio y diagnostico saludable de los servicios con floci doctor.
+
+Servicios integrados en Floci:
+S3, DynamoDB, Lambda, EventBridge Scheduler, API Gateway, SQS, IAM.
+
+## Pruebas y Verificacion de Floci con AWS CLI
+
+Sintaxis general: aws [servicio] [accion]
+
+### 1. Verificar servicio S3
+```bash
+aws s3 ls
+```
+Retorna vacio si aun no existen buckets.
+
+### 2. Creacion de un Bucket (Contenedor en S3)
+```bash
+aws s3 mb s3://laboratorio-floci
+```
+Resultado: make_bucket: laboratorio-floci
+
+Flujo de trabajo (WorkFlow):
+PC ==> AWS CLI ==> AWS_ENDPOINT_URL (http://localhost:4566) ==> FLOCI ==> S3 ==> laboratorio-floci
+
+### 3. Conceptos Clave de Amazon S3
+
+* Bucket: Contenedor principal donde se almacenan los archivos (ejemplo: laboratorio-floci o mi-bucket-archivos).
+* Object: Archivo binario o documento almacenado (ejemplo: laptop.jpg o documento.pdf).
+* Key: Nombre y ruta logica completa del objeto dentro del bucket (ejemplo: imagenes/productos/laptop.jpg).
+
+### 4. Prueba manual de subida y descarga (PowerShell / Terminal)
+
+Crear un archivo de prueba:
+En PowerShell:
+```powershell
+"este es un mensaje contenido en un archivo de texto" | Out-File mensaje.txt
+```
+En Linux:
+```bash
+echo "este es un mensaje contenido en un archivo de texto" > mensaje.txt
+```
+
+Subir el archivo al Bucket en S3:
+```bash
+aws s3 cp mensaje.txt s3://laboratorio-floci
+```
+Resultado: upload: ./mensaje.txt to s3://laboratorio-floci/mensaje.txt
+
+Verificar la existencia del archivo en el Bucket:
+```bash
+aws s3 ls s3://laboratorio-floci
+```
+
+Descargar el archivo desde S3:
+```bash
+aws s3 cp s3://laboratorio-floci/mensaje.txt ./mensaje_descargado.txt
+```
+
+## Construccion y Ejecucion de la App Web (Node.js + Express)
+
+La aplicacion conecta una interfaz web con S3, DynamoDB, Lambda y EventBridge Scheduler.
+
+### 1. Clonar el repositorio del proyecto
 ```bash
 git clone https://github.com/Pineda-25/Proyecto-AWS.git
 cd Proyecto-AWS
 ```
 
-### 2. Instalacion de Floci (Segun tu Sistema Operativo)
-
-Opcion para Linux / macOS:
-Metodo CLI:
-```bash
-curl -fsSL https://floci.io/install.sh | sh
-floci start
-```
-Metodo Docker directo (alternativa):
-```bash
-docker run -d --name floci -p 4566:4566 -v /var/run/docker.sock:/var/run/docker.sock floci/floci:latest
-```
-
-Opcion para Windows:
-Metodo PowerShell:
-```powershell
-iwr https://floci.io/install.ps1 | iex
-floci start
-```
-Metodo Scoop:
-```powershell
-scoop bucket add floci https://github.com/floci-io/scoop-floci
-scoop install floci
-floci start
-```
-Metodo Docker Desktop directo (alternativa en PowerShell o CMD):
-```powershell
-docker run -d --name floci -p 4566:4566 -v //var/run/docker.sock:/var/run/docker.sock floci/floci:latest
-```
-
-Verificar que Floci este activo:
-El endpoint local responde en: http://localhost:4566
-
-### 3. Como ver la Interfaz Grafica (Web UI) de Floci
-
-Floci cuenta con un panel visual para inspeccionar recursos desde el navegador web sin usar unicamente la terminal:
-
-* Direccion de acceso:
-  Abre en tu navegador: http://localhost:4566/_floci/ui
-  (o tambien http://localhost:4500)
-
-* Que puedes revisar en la UI:
-  S3: Ver los buckets creados y los archivos almacenados.
-  DynamoDB: Explorar las tablas e inspeccionar los items guardados con su fecha y metadatos.
-  Lambda: Ver las funciones desplegadas (notificar y rutina_automatica).
-  Scheduler: Ver las reglas de programacion horaria activas.
-
-### 4. Instalar dependencias del proyecto Node.js
-
-En la terminal, dentro de la carpeta Proyecto-AWS:
+### 2. Dependencias del proyecto
+Instalar las librerias requeridas:
 ```bash
 npm install
 ```
 
-### 5. Configurar archivo .env
+Librerias utilizadas:
+* express: Framework backend para crear el servidor web y rutas HTTP.
+* multer: Middleware para recibir y gestionar archivos binarios subidos por formularios.
+* dotenv: Carga y gestion de variables de entorno desde el archivo .env.
+* @aws-sdk/client-s3: SDK oficial de AWS para interactuar con S3 (subida, listado, descarga, eliminacion).
+* @aws-sdk/client-dynamodb: SDK oficial para registrar metadatos en tablas NoSQL.
+* @aws-sdk/client-lambda: SDK oficial para invocar funciones serverless.
+* @aws-sdk/client-scheduler: SDK para programar tareas automaticas recurrentes.
 
-Crear el archivo .env en la raiz del proyecto con la siguiente configuracion:
-
-En Linux / macOS:
-```bash
-cp env.example .env
-```
+### 3. Configuracion del archivo .env
+Crear el archivo .env en la raiz del proyecto:
 
 En Windows (PowerShell):
 ```powershell
 Copy-Item env.example .env
+```
+En Linux / macOS:
+```bash
+cp env.example .env
 ```
 
 Contenido necesario dentro de .env:
@@ -115,73 +213,75 @@ AWS_S3_PREFIX=archivos/
 AWS_DYNAMODB_TABLE=archivos
 ```
 
-### 6. Crear recursos en Floci (Bucket, Tabla y Lambdas)
-
-Ejecuta el script automatico que configura todo en Floci:
+### 4. Inicializacion de recursos en Floci por comando
+Ejecuta el script automatico para crear el Bucket en S3, la tabla en DynamoDB y las funciones Lambda:
 ```bash
 npm run setup:floci
 ```
 
+### 5. Iniciar la aplicacion web
+```bash
+npm start
+```
+Abrir el navegador en:
+http://localhost:3000
+
+Funcionalidades en la web:
+* Subida (/): Permite subir cualquier archivo. Guarda el objeto en S3, calcula la cantidad total de archivos, registra los datos en DynamoDB con la hora exacta de Peru (America/Lima) y dispara la Lambda de notificacion.
+* Listado y descarga (/lista): Permite visualizar todos los archivos guardados, descargarlos o eliminarlos.
+
 ## Gestion de Tareas Programadas (EventBridge Scheduler)
 
-El Scheduler y la subida de archivos son tareas separadas e independientes.
+El Scheduler es un servicio de automatizacion por horario que funciona de forma independiente a la subida web:
 
-* Crear un horario programado (ejemplo: cada 1 hora):
+* Crear una tarea programada horaria:
 ```bash
 node scheduler.js crear reporte-hora "rate(1 hour)"
 ```
 
-* Listar horarios programados activos:
+* Listar los horarios programados activos:
 ```bash
 npm run schedule:listar
 ```
 
-* Ejecutar la rutina manualmente de inmediato (para pruebas sin esperar la hora):
+* Ejecutar la rutina manualmente de inmediato (prueba rapida):
 ```bash
 npm run schedule:ejecutar
 ```
 
-* Eliminar un horario programado:
+* Eliminar una tarea programada:
 ```bash
 node scheduler.js eliminar reporte-hora
 ```
 
-## Manual Rapido de Ejecucion (Paso a Paso Completo)
+## Monitoreo por GUI (Interfaz Grafica de Floci)
 
-Si ya tienes las herramientas instaladas, para poner a correr todo el proyecto solo sigue estos pasos:
+Floci incluye una consola web visual para inspeccionar los recursos creados:
 
-Paso 1: Iniciar Floci
-```bash
-floci start
-```
-(Si usas Docker directo: docker start floci)
+* Direccion de acceso en el navegador:
+  http://localhost:4566/_floci/ui
+  (o alternativamente http://localhost:4500)
 
-Paso 2: Inicializar o verificar los recursos de AWS en Floci
-```bash
-npm run setup:floci
-```
+* Que se puede inspeccionar:
+  S3: Ver los buckets creados y navegar entre los archivos guardados.
+  DynamoDB: Consultar las tablas y explorar los registros con sus claves y fechas.
+  Lambda: Inspeccionar las funciones notificar y rutina_automatica.
+  Scheduler: Visualizar los horarios y reglas activas.
 
-Paso 3: Activar la tarea programada horaria (opcional)
-```bash
-node scheduler.js crear reporte-hora "rate(1 hour)"
-```
+## Manual Rapido de Ejecucion (Resumen Paso a Paso)
 
-Paso 4: Iniciar el servidor web
-```bash
-npm start
-```
+1. Iniciar Floci:
+   floci start
 
-Paso 5: Probar la aplicacion
-1. Abre en tu navegador http://localhost:3000 para subir archivos.
-2. Abre http://localhost:3000/lista para ver, descargar o borrar archivos.
-3. Abre http://localhost:4566/_floci/ui para ver visualmente el estado de S3, DynamoDB y Lambda en Floci.
+2. Inicializar recursos locales:
+   npm run setup:floci
 
-## Estructura de Archivos
+3. Iniciar la aplicacion web:
+   npm start
 
-* index.js: Servidor Express, rutas web y llamadas a AWS SDK (S3, DynamoDB, Lambda).
-* notificar.js: Codigo de la funcion Lambda que procesa la notificacion de subida.
-* index_rutina.js: Codigo de la funcion Lambda de monitoreo ejecutada por el Scheduler.
-* scheduler.js: CLI para crear, listar, ejecutar y eliminar horarios en EventBridge Scheduler.
-* setup_floci.js: Script para inicializar de forma automatica el Bucket, la Tabla y las Lambdas en Floci.
-* public/: Frontend de la aplicacion (index.html y lista.html).
-* .env: Configuracion de credenciales y endpoints locales.
+4. Abrir en el navegador:
+   App Web: http://localhost:3000
+   Panel GUI Floci: http://localhost:4566/_floci/ui
+
+5. Activar o probar la tarea de Scheduler (opcional):
+   npm run schedule:ejecutar
