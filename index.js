@@ -17,6 +17,12 @@ const {
     PutItemCommand
 } = require("@aws-sdk/client-dynamodb")
 
+//LAMBDA
+const {
+    LambdaClient,
+    InvokeCommand
+} = require("@aws-sdk/client-lambda")
+
 //Cargar variables de entorno
 dotenv.config();
 
@@ -49,6 +55,16 @@ const s3Client = new S3Client({
 //Cliente Dynameo
 const dynamoDBClient = new DynamoDBClient({
    region: process.env.AWS_REGION,
+    endpoint: process.env.AWS_ENDPOINT_URL,
+    credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+    }
+})
+
+//Cliente LAMBDA
+const lambdaClient = new LambdaClient({
+    region: process.env.AWS_REGION,
     endpoint: process.env.AWS_ENDPOINT_URL,
     credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID,
@@ -125,17 +141,19 @@ app.post('/upload', upload.single('archivo'), async (req, res) => {
         await dynamoDBClient.send(dynamoCommand)
         console.log("Registro en dynamo Creado")
 
-        //Respuesta al cliente
+        const payload = JSON.stringify({ archivo: fileName });
+        const lambdaRes = await lambdaClient.send(new InvokeCommand({
+            FunctionName: 'notificar',
+            Payload: Buffer.from(payload)
+        }));
+        console.log("NOTIFICACIÓN LAMBDA:", Buffer.from(lambdaRes.Payload).toString());
+
+        // Respuesta final al cliente (una sola vez)
         res.redirect('/lista');
 
-
     } catch (e) {
-        console.error(e);
-        res.status(500).json({
-            success: false,
-            message: 'Error al subir el archivo',
-            error: e.message
-        })
+        console.error("Error:", e.message);
+        res.status(500).send('Error al procesar archivo');
     }
 })
 
